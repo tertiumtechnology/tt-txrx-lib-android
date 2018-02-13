@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">TxRxLib</string>
+    <string name="txrx_prefs_name">TxRxLibPreferences</string>
+</resources>
