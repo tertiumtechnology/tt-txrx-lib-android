@@ -1,7 +1,6 @@
 package com.tertiumtechnology.txrxlib.scan;
 
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
 
 /**
  * Callback interface used to deliver BLE scan results.
@@ -13,9 +12,9 @@ public interface TxRxScanCallback {
     /**
      * Callback when a BLE device has been found.
      *
-     * @param device {@link BluetoothDevice} Identifies the remote device found.
+     * @param scanResult the result of a scan operation for BLE Devices
      */
-    void onDeviceFound(BluetoothDevice device);
+    void onDeviceFound(TxRxScanResult scanResult);
 
     /**
      * Callback immediately after the scan has been stopped.
