@@ -139,18 +139,11 @@ public class TxRxDeviceManager {
     static {
         // TxRxTertium
         txRxProfiles.add(new TxRxDeviceProfile(
-                /*
-                "0000FFF0-0000-1000-8000-00805F9B34FB",
-                "0000FFF2-0000-1000-8000-00805F9B34FB",
-                "0000FFF1-0000-1000-8000-00805F9B34FB",
-                */
                 "3CC33CDC-CB91-4947-BD12-80D2F0535A30",
                 "3664D14A-08CB-4465-A98A-EBF84F29E943",
                 "F3774638-1164-49BC-8F22-0AC34292C217",
                 TxRxDeviceProfile.TerminatorType.CRLF,
                 TxRxDeviceProfile.TerminatorType.NONE,
-                //TxRxDeviceProfile.TerminatorType.NONE,
-                //TxRxDeviceProfile.TerminatorType.LF,
                 128, 20));
 
         // TxRxAckme
@@ -161,6 +154,15 @@ public class TxRxDeviceManager {
                 TxRxDeviceProfile.TerminatorType.CRLF,
                 TxRxDeviceProfile.TerminatorType.NONE,
                 15, 20));
+
+        // Zhaga
+        txRxProfiles.add(new TxRxDeviceProfile(
+                "3cc30001-cb91-4947-bd12-80d2f0535a30",
+                "3cc30002-cb91-4947-bd12-80d2f0535a30",
+                "3cc30003-cb91-4947-bd12-80d2f0535a30",
+                TxRxDeviceProfile.TerminatorType.CRLF,
+                TxRxDeviceProfile.TerminatorType.NONE,
+                240, 240));
     }
 
     private final Runnable connectionTimeoutRunnable;
@@ -489,7 +491,6 @@ public class TxRxDeviceManager {
      */
     public synchronized void disconnect() {
         Log.i(TAG, "Request disconnect");
-
 
         if (bluetoothAdapter == null) {
             Log.w(TAG, "BluetoothAdapter not initialized");
