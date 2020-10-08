@@ -55,6 +55,13 @@ public interface TxRxDeviceCallback {
     void onReadData(String data);
 
     /**
+     * Callback on a successful setMode request.
+     *
+     * @param mode The current setMode value
+     */
+    void onSetMode(int mode);
+
+    /**
      * Callback when a device send notification data.
      *
      * @param data The data notified
@@ -79,6 +86,18 @@ public interface TxRxDeviceCallback {
      * Callback on write timeout.
      */
     void onWriteTimeout();
+
+    /**
+     * Callback when a setMode error occurs.
+     *
+     * @param errorCode Error code for setMode error
+     */
+    void onSetModeError(int errorCode);
+
+    /**
+     * Callback on setMode timeout.
+     */
+    void onSetModeTimeout();
 
     /**
      * Callback on read or notify timeout.
