@@ -12,6 +12,7 @@ import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.text.TextUtils;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -132,34 +133,61 @@ public class TxRxDeviceManager {
      */
     public static final int ERROR_WRITE_OPERATION_IN_PROGRESS = 33;
 
+    /**
+     * An Error occurred on setMode request
+     */
+    public static final int ERROR_SET_MODE = 4;
+
+    /**
+     * Unable to initiate setMode operation
+     */
+    public static final int ERROR_SET_MODE_BLE_DEVICE_ERROR = 41;
+
+    /**
+     * Invalid setMode characteristic
+     */
+    public static final int ERROR_SET_MODE_INVALID_CHARACTERISTIC = 42;
+
+    /**
+     * Invalid request, setMode operation already in progress
+     */
+    public static final int ERROR_SET_MODE_OPERATION_IN_PROGRESS = 43;
+
     private static final String TAG = TxRxDeviceManager.class.getSimpleName();
+
+    private static final String TX_RX_TERTIUM_SERVICEUUID = "f3770001-1164-49bc-8f22-0ac34292c217";
+    private static final String TX_RX_ACKME_SERVICEUUID = "175f8f23-a570-49bd-9627-815a6a27de2a";
+    private static final String ZHAGA_SERVICEUUID = "3cc30001-cb91-4947-bd12-80d2f0535a30";
 
     private static ArrayList<TxRxDeviceProfile> txRxProfiles = new ArrayList<>();
 
     static {
         // TxRxTertium
         txRxProfiles.add(new TxRxDeviceProfile(
-                "3CC33CDC-CB91-4947-BD12-80D2F0535A30",
-                "3664D14A-08CB-4465-A98A-EBF84F29E943",
-                "F3774638-1164-49BC-8F22-0AC34292C217",
+                TX_RX_TERTIUM_SERVICEUUID,
+                "f3770002-1164-49bc-8f22-0ac34292c217",
+                "f3770003-1164-49bc-8f22-0ac34292c217",
+                "",
                 TxRxDeviceProfile.TerminatorType.CRLF,
                 TxRxDeviceProfile.TerminatorType.NONE,
                 128, 20));
 
         // TxRxAckme
         txRxProfiles.add(new TxRxDeviceProfile(
-                "175f8f23-a570-49bd-9627-815a6a27de2a",
+                TX_RX_ACKME_SERVICEUUID,
                 "1cce1ea8-bd34-4813-a00a-c76e028fadcb",
                 "cacc07ff-ffff-4c48-8fae-a9ef71b75e26",
+                "20b9794f-da1a-4d14-8014-a0fb9cefb2f7",
                 TxRxDeviceProfile.TerminatorType.CRLF,
                 TxRxDeviceProfile.TerminatorType.NONE,
                 15, 20));
 
         // Zhaga
         txRxProfiles.add(new TxRxDeviceProfile(
-                "3cc30001-cb91-4947-bd12-80d2f0535a30",
+                ZHAGA_SERVICEUUID,
                 "3cc30002-cb91-4947-bd12-80d2f0535a30",
                 "3cc30003-cb91-4947-bd12-80d2f0535a30",
+                "",
                 TxRxDeviceProfile.TerminatorType.CRLF,
                 TxRxDeviceProfile.TerminatorType.NONE,
                 240, 240));
@@ -170,28 +198,38 @@ public class TxRxDeviceManager {
     private final Runnable successfulNotifyTimeoutRunnable;
     private final Runnable successfulReadTimeoutRunnable;
     private final Runnable writeTimeoutRunnable;
+    private final Runnable setModeTimeoutRunnable;
 
+    private TxRxDeviceProfile connectedProfile;
+    private TxRxTimeouts txRxTimeouts;
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothGatt bluetoothGatt;
-    private Iterator<byte[]> chunksIterator;
     private TxRxDeviceCallback deviceCallback;
     private HandlerWrapper handlerWrapper;
-    private boolean isWriting;
 
     private StringBuilder notifyAccumulator;
-    private StringBuilder readAccumulator;
-    private BluetoothGattCharacteristic readCharacteristic;
 
+    private BluetoothGattCharacteristic readCharacteristic;
     private String readTerminator;
-    private TxRxTimeouts txRxTimeouts;
+    private StringBuilder readAccumulator;
+
     private BluetoothGattCharacteristic writeCharacteristic;
-    private int writePacketSize;
     private String writeTerminator;
+    private Iterator<byte[]> chunksIterator;
+    private int writePacketSize;
+    private boolean isWriting;
+
+    private BluetoothGattCharacteristic setModeCharacteristic;
+    private boolean isSettingMode;
 
     private BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-            accumulateValues(characteristic.getStringValue(0), notifyAccumulator, successfulNotifyTimeoutRunnable);
+            String uuid = characteristic.getUuid().toString();
+
+            if (!connectedProfile.getSetModeCharacteristicUUID().equals(uuid)) {
+                accumulateValues(characteristic.getStringValue(0), notifyAccumulator, successfulNotifyTimeoutRunnable);
+            }
         }
 
         @Override
@@ -209,32 +247,53 @@ public class TxRxDeviceManager {
 
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            handlerWrapper.safeRemoveCallbacks(writeTimeoutRunnable);
+            String uuid = characteristic.getUuid().toString();
 
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.i(TAG, "Characteristic value written: " + characteristic.getStringValue(0));
+            if (connectedProfile.getSetModeCharacteristicUUID().equals(uuid)) {
+                // is setMode
+                handlerWrapper.safeRemoveCallbacks(setModeTimeoutRunnable);
 
-                if (chunksIterator.hasNext()) {
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    Integer currentMode = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                    Log.i(TAG,
+                            "SetMode characteristic value written: " + currentMode);
+                    isSettingMode = false;
+                    deviceCallback.onSetMode(currentMode);
+                }
+                else {
+                    Log.w(TAG, "Unable to setMode: " + status);
+                    isSettingMode = false;
+                    deviceCallback.onSetModeError(TxRxDeviceManager.ERROR_SET_MODE);
+                }
+            }
+            else {// is write
+                handlerWrapper.safeRemoveCallbacks(writeTimeoutRunnable);
 
-                    if (writeCharacteristic.setValue(chunksIterator.next())
-                            && bluetoothGatt.writeCharacteristic(writeCharacteristic)) {
-                        handlerWrapper.safePostDelayed(writeTimeoutRunnable, txRxTimeouts.getWriteTimeout());
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    Log.i(TAG, "Characteristic value written: " + characteristic.getStringValue(0));
+
+                    if (chunksIterator.hasNext()) {
+
+                        if (writeCharacteristic.setValue(chunksIterator.next())
+                                && bluetoothGatt.writeCharacteristic(writeCharacteristic)) {
+                            handlerWrapper.safePostDelayed(writeTimeoutRunnable, txRxTimeouts.getWriteTimeout());
+                        }
+                        else {
+                            Log.w(TAG, "Unable to continue write operation");
+                            isWriting = false;
+                            deviceCallback.onWriteError(TxRxDeviceManager.ERROR_WRITE);
+                        }
                     }
                     else {
-                        Log.w(TAG, "Unable to continue write operation");
                         isWriting = false;
-                        deviceCallback.onWriteError(TxRxDeviceManager.ERROR_WRITE);
+                        deviceCallback.onWriteData(characteristic.getStringValue(0));
                     }
                 }
                 else {
+                    Log.w(TAG, "Unable to write: " + status);
                     isWriting = false;
-                    deviceCallback.onWriteData(characteristic.getStringValue(0));
+                    deviceCallback.onWriteError(TxRxDeviceManager.ERROR_WRITE);
                 }
-            }
-            else {
-                Log.w(TAG, "Unable to write: " + status);
-                isWriting = false;
-                deviceCallback.onWriteError(TxRxDeviceManager.ERROR_WRITE);
             }
         }
 
@@ -284,7 +343,17 @@ public class TxRxDeviceManager {
                         writeCharacteristic = service.getCharacteristic(UUID.fromString(profile
                                 .getRxCharacteristicUUID()));
 
-                        if (readCharacteristic != null && writeCharacteristic != null) {
+                        boolean validSetMode = true;
+                        String setModeCharacteristicUUID = profile.getSetModeCharacteristicUUID();
+
+                        if (!TextUtils.isEmpty(setModeCharacteristicUUID)) {
+                            // setModeCharacteristic
+                            setModeCharacteristic =
+                                    service.getCharacteristic(UUID.fromString(setModeCharacteristicUUID));
+                            validSetMode = setModeCharacteristic != null;
+                        }
+
+                        if (readCharacteristic != null && writeCharacteristic != null && validSetMode) {
 
                             for (BluetoothGattDescriptor descriptor : readCharacteristic.getDescriptors()) {
                                 descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
@@ -295,12 +364,25 @@ public class TxRxDeviceManager {
                             bluetoothGatt.setCharacteristicNotification(readCharacteristic, true);
                             bluetoothGatt.setCharacteristicNotification(writeCharacteristic, true);
 
+//                            if (setModeCharacteristic != null) {
+//                                bluetoothGatt.setCharacteristicNotification(setModeCharacteristic, true);
+//
+//                                for (BluetoothGattDescriptor descriptor : setModeCharacteristic.getDescriptors()) {
+//                                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
+//                                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+//                                    bluetoothGatt.writeDescriptor(descriptor);
+//                                }
+//                            }
+
                             readTerminator = profile.getTxTerminatorType().getValue();
                             writeTerminator = profile.getRxTerminatorType().getValue();
 
                             writePacketSize = profile.getRxPacketSize();
 
+                            connectedProfile = profile;
+
                             deviceCallback.onTxRxServiceDiscovered();
+
                             return;
                         }
                     }
@@ -366,6 +448,15 @@ public class TxRxDeviceManager {
             public void run() {
                 TxRxDeviceManager.this.deviceCallback.onReadNotifyTimeout();
                 Log.w(TAG, "Read/Notify failed: timeout!");
+            }
+        };
+
+        setModeTimeoutRunnable = new Runnable() {
+            @Override
+            public void run() {
+                isSettingMode = false;
+                TxRxDeviceManager.this.deviceCallback.onSetModeTimeout();
+                Log.w(TAG, "SetMode failed: timeout!");
             }
         };
 
@@ -510,6 +601,17 @@ public class TxRxDeviceManager {
     }
 
     /**
+     * Check if the connected device is a TxRxAckme device
+     * <p>
+     *
+     * @return true if the connected device is a TxRxAckme, false otherwise.
+     */
+
+    public boolean isTxRxAckme() {
+        return connectedProfile != null && TX_RX_ACKME_SERVICEUUID.equals(connectedProfile.getTxRxServiceUuid());
+    }
+
+    /**
      * Check if the device with the specified <b>address</b> is currently connected
      * <p>
      *
@@ -558,6 +660,56 @@ public class TxRxDeviceManager {
         }
 
         return readInitiated;
+    }
+
+    /**
+     * Set the operation mode to use during the communication with the device.
+     * <p>
+     * A {@link TxRxDeviceCallback#onSetMode(int)} callback will be invoked when the operation will be
+     * completed,
+     * reporting the result of the SetMode operation
+     * <p>
+     * Otherwise a {@link TxRxDeviceCallback#onSetModeError(int)} callback will be invoked on SetMode error.
+     * <p>
+     * Requires {@link android.Manifest.permission#BLUETOOTH} permission.
+     *
+     * @param mode String the operation mode to apply
+     * @return true if the operation mode can be set and the SetMode operation was initiated successfully, false
+     * otherwise.
+     */
+    public synchronized boolean requestSetMode(int mode) {
+        Log.i(TAG, "Start setMode request for operation: " + mode);
+
+        if (setModeCharacteristic == null) {
+            Log.w(TAG, "Invalid setMode characteristic");
+            deviceCallback.onSetModeError(ERROR_SET_MODE_INVALID_CHARACTERISTIC);
+            return false;
+        }
+
+        if (isSettingMode) {
+            Log.w(TAG, "SetMode operation already initiated, currently in progress");
+            deviceCallback.onSetModeError(ERROR_SET_MODE_OPERATION_IN_PROGRESS);
+            return false;
+        }
+
+        //mode += writeTerminator;
+
+        byte[] modeByte = {(byte) mode};
+
+        boolean setModeInitiated = setModeCharacteristic.setValue(modeByte)
+                && bluetoothGatt.writeCharacteristic(setModeCharacteristic);
+
+        if (setModeInitiated) {
+            isSettingMode = true;
+
+            handlerWrapper.safePostDelayed(setModeTimeoutRunnable, txRxTimeouts.getWriteTimeout());
+        }
+        else {
+            Log.w(TAG, "Unable to initiate setMode operation");
+            deviceCallback.onSetModeError(ERROR_SET_MODE_BLE_DEVICE_ERROR);
+        }
+
+        return setModeInitiated;
     }
 
     /**
@@ -624,6 +776,8 @@ public class TxRxDeviceManager {
         isWriting = false;
         readAccumulator.setLength(0);
         notifyAccumulator.setLength(0);
+
+        connectedProfile = null;
     }
 
     private void initChunksIterator(byte[] dataBytes) {
