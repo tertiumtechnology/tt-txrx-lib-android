@@ -9,16 +9,6 @@ import android.bluetooth.BluetoothAdapter;
  */
 public interface TxRxDeviceCallback {
     /**
-     * Callback on successful connection to a device.
-     */
-    void onDeviceConnected();
-
-    /**
-     * Callback on successful disconnect from a device.
-     */
-    void onDeviceDisconnected();
-
-    /**
      * Callback when a connection error occurs.
      *
      * @param errorCode Error code for connection error
@@ -29,6 +19,73 @@ public interface TxRxDeviceCallback {
      * Callback on connection timeout.
      */
     void onConnectionTimeout();
+
+    /**
+     * Callback on successful connection to a device.
+     */
+    void onDeviceConnected();
+
+    /**
+     * Callback on successful disconnect from a device.
+     */
+    void onDeviceDisconnected();
+
+    /**
+     * Callback when a device send event data.
+     *
+     * @param data The data sent
+     */
+    void onEventData(String data);
+
+    /**
+     * Callback when a device send notification data.
+     *
+     * @param data The data notified
+     */
+    void onNotifyData(String data);
+
+    /**
+     * Callback on a successful read request.
+     *
+     * @param data The data read
+     */
+    void onReadData(String data);
+
+    /**
+     * Callback when a read error occurs.
+     *
+     * @param errorCode Error code for read error
+     */
+    void onReadError(int errorCode);
+
+    /**
+     * Callback on read or notify timeout.
+     */
+    void onReadNotifyTimeout();
+
+    /**
+     * Callback on receiving {@link TxRxTimestamps txRxTimestamps} after notification data
+     */
+    void onReceiveTxRxTimestampsAfterNotifyData(TxRxTimestamps txRxTimestamps);
+
+    /**
+     * Callback on a successful setMode request.
+     *
+     * @param mode The current setMode value
+     */
+    void onSetMode(int mode);
+
+    /**
+     * Callback when a setMode error occurs.
+     *
+     * @param errorCode Error code for setMode error
+     */
+    void onSetModeError(int errorCode);
+
+    /**
+     * Callback on setMode timeout.
+     */
+    void onSetModeTimeout();
 
     /**
      * Callback when a TxRx service has been discovered.
@@ -48,34 +105,6 @@ public interface TxRxDeviceCallback {
     void onWriteData(String data);
 
     /**
-     * Callback on a successful read request.
-     *
-     * @param data The data read
-     */
-    void onReadData(String data);
-
-    /**
-     * Callback on a successful setMode request.
-     *
-     * @param mode The current setMode value
-     */
-    void onSetMode(int mode);
-
-    /**
-     * Callback when a device send notification data.
-     *
-     * @param data The data notified
-     */
-    void onNotifyData(String data);
-
-    /**
-     * Callback when a read error occurs.
-     *
-     * @param errorCode Error code for read error
-     */
-    void onReadError(int errorCode);
-
-    /**
      * Callback when a write error occurs.
      *
      * @param errorCode Error code for write error
@@ -86,21 +115,4 @@ public interface TxRxDeviceCallback {
      * Callback on write timeout.
      */
     void onWriteTimeout();
-
-    /**
-     * Callback when a setMode error occurs.
-     *
-     * @param errorCode Error code for setMode error
-     */
-    void onSetModeError(int errorCode);
-
-    /**
-     * Callback on setMode timeout.
-     */
-    void onSetModeTimeout();
-
-    /**
-     * Callback on read or notify timeout.
-     */
-    void onReadNotifyTimeout();
 }

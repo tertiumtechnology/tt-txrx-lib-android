@@ -10,14 +10,14 @@ import android.bluetooth.BluetoothAdapter;
 public interface TxRxScanCallback {
 
     /**
+     * Callback immediately after the scan has been stopped.
+     */
+    void afterStopScan();
+
+    /**
      * Callback when a BLE device has been found.
      *
      * @param scanResult the result of a scan operation for BLE Devices
      */
     void onDeviceFound(TxRxScanResult scanResult);
-
-    /**
-     * Callback immediately after the scan has been stopped.
-     */
-    void afterStopScan();
 }

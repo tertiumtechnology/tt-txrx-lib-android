@@ -18,12 +18,16 @@ import android.util.Log;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import java.util.UUID;
 
 /**
- * This class provides methods to perform request and receive data from devices which offer TxRx services.
- * Needs an implementation of {@link TxRxDeviceCallback} to manage communication between application and device.
+ * This class provides methods to perform request and receive data from devices which offer TxRx
+ * services.
+ * Needs an implementation of {@link TxRxDeviceCallback} to manage communication between
+ * application and device.
  * <p>
  * <b>Note:</b> Most of the request methods here require
  * {@link android.Manifest.permission#BLUETOOTH} permission.
@@ -168,6 +172,7 @@ public class TxRxDeviceManager {
                 "f3770002-1164-49bc-8f22-0ac34292c217",
                 "f3770003-1164-49bc-8f22-0ac34292c217",
                 "",
+                "",//f3770004-1164-49bc-8f22-0ac34292c217
                 TxRxDeviceProfile.TerminatorType.CRLF,
                 TxRxDeviceProfile.TerminatorType.NONE,
                 128, 20));
@@ -178,6 +183,7 @@ public class TxRxDeviceManager {
                 "1cce1ea8-bd34-4813-a00a-c76e028fadcb",
                 "cacc07ff-ffff-4c48-8fae-a9ef71b75e26",
                 "20b9794f-da1a-4d14-8014-a0fb9cefb2f7",
+                "",
                 TxRxDeviceProfile.TerminatorType.CRLF,
                 TxRxDeviceProfile.TerminatorType.NONE,
                 15, 20));
@@ -188,7 +194,8 @@ public class TxRxDeviceManager {
                 "3cc30002-cb91-4947-bd12-80d2f0535a30",
                 "3cc30003-cb91-4947-bd12-80d2f0535a30",
                 "",
-                TxRxDeviceProfile.TerminatorType.CRLF,
+                "3cc30004-cb91-4947-bd12-80d2f0535a30",
+                TxRxDeviceProfile.TerminatorType.CR,
                 TxRxDeviceProfile.TerminatorType.NONE,
                 240, 240));
     }
@@ -197,6 +204,7 @@ public class TxRxDeviceManager {
     private final Runnable readTimeoutRunnable;
     private final Runnable successfulNotifyTimeoutRunnable;
     private final Runnable successfulReadTimeoutRunnable;
+    private final Runnable successfulEventTimeoutRunnable;
     private final Runnable writeTimeoutRunnable;
     private final Runnable setModeTimeoutRunnable;
 
@@ -222,20 +230,49 @@ public class TxRxDeviceManager {
     private BluetoothGattCharacteristic setModeCharacteristic;
     private boolean isSettingMode;
 
+    private TxRxTimestamps txRxTimestamps;
+
+    private BluetoothGattCharacteristic eventCharacteristic;
+
+    private StringBuilder eventAccumulator;
+
+    private Queue<BluetoothGattDescriptor> descriptorsToEnable;
     private BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
+
         @Override
-        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+        public void onCharacteristicChanged(BluetoothGatt gatt,
+                                            BluetoothGattCharacteristic characteristic) {
             String uuid = characteristic.getUuid().toString();
 
             if (!connectedProfile.getSetModeCharacteristicUUID().equals(uuid)) {
-                accumulateValues(characteristic.getStringValue(0), notifyAccumulator, successfulNotifyTimeoutRunnable);
+
+                if (connectedProfile.getEventCharacteristicUUID().equals(uuid)) {
+                    accumulateValuesForEvent(characteristic.getStringValue(0), eventAccumulator,
+                            successfulEventTimeoutRunnable);
+                }
+                else {
+                    // TIME RECORDING - START NOTIFY (ONLY THE FIRST TIME)
+                    if (txRxTimestamps != null && txRxTimestamps.getBeginNotifyTime() == 0L) {
+                        txRxTimestamps.setBeginNotifyTime(System.currentTimeMillis());
+                    }
+
+                    accumulateValues(characteristic.getStringValue(0), notifyAccumulator,
+                            successfulNotifyTimeoutRunnable);
+
+                    // TIME RECORDING - END NOTIFY (UPDATES EVERY TIME)
+                    if (txRxTimestamps != null) {
+                        txRxTimestamps.setEndNotifyTime(System.currentTimeMillis());
+                    }
+                }
             }
         }
 
         @Override
-        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+        public void onCharacteristicRead(BluetoothGatt gatt,
+                                         BluetoothGattCharacteristic characteristic, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                accumulateValues(characteristic.getStringValue(0), readAccumulator, successfulReadTimeoutRunnable);
+                accumulateValues(characteristic.getStringValue(0), readAccumulator,
+                        successfulReadTimeoutRunnable);
             }
             else {
                 Log.w(TAG, "Unable to read: " + status);
@@ -246,7 +283,8 @@ public class TxRxDeviceManager {
         }
 
         @Override
-        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+        public void onCharacteristicWrite(BluetoothGatt gatt,
+                                          BluetoothGattCharacteristic characteristic, int status) {
             String uuid = characteristic.getUuid().toString();
 
             if (connectedProfile.getSetModeCharacteristicUUID().equals(uuid)) {
@@ -254,7 +292,8 @@ public class TxRxDeviceManager {
                 handlerWrapper.safeRemoveCallbacks(setModeTimeoutRunnable);
 
                 if (status == BluetoothGatt.GATT_SUCCESS) {
-                    Integer currentMode = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                    Integer currentMode =
+                            characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
                     Log.i(TAG,
                             "SetMode characteristic value written: " + currentMode);
                     isSettingMode = false;
@@ -276,7 +315,8 @@ public class TxRxDeviceManager {
 
                         if (writeCharacteristic.setValue(chunksIterator.next())
                                 && bluetoothGatt.writeCharacteristic(writeCharacteristic)) {
-                            handlerWrapper.safePostDelayed(writeTimeoutRunnable, txRxTimeouts.getWriteTimeout());
+                            handlerWrapper.safePostDelayed(writeTimeoutRunnable,
+                                    txRxTimeouts.getWriteTimeout());
                         }
                         else {
                             Log.w(TAG, "Unable to continue write operation");
@@ -285,6 +325,11 @@ public class TxRxDeviceManager {
                         }
                     }
                     else {
+                        // TIME RECORDING - END WRITE COMMAND
+                        if (txRxTimestamps != null) {
+                            txRxTimestamps.setEndWriteTime(System.currentTimeMillis());
+                        }
+
                         isWriting = false;
                         deviceCallback.onWriteData(characteristic.getStringValue(0));
                     }
@@ -330,11 +375,19 @@ public class TxRxDeviceManager {
         }
 
         @Override
+        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+            super.onDescriptorWrite(gatt, descriptor, status);
+
+            enableIndicationNotificationOnNextDescriptor();
+        }
+
+        @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 for (TxRxDeviceProfile profile : txRxProfiles) {
                     //TxRxService
-                    BluetoothGattService service = gatt.getService(UUID.fromString(profile.getTxRxServiceUuid()));
+                    BluetoothGattService service =
+                            gatt.getService(UUID.fromString(profile.getTxRxServiceUuid()));
                     if (service != null) {
                         // TxCharacteristic - read
                         readCharacteristic = service.getCharacteristic(UUID.fromString(profile
@@ -353,26 +406,36 @@ public class TxRxDeviceManager {
                             validSetMode = setModeCharacteristic != null;
                         }
 
-                        if (readCharacteristic != null && writeCharacteristic != null && validSetMode) {
+                        boolean validEvent = true;
+                        String eventCharacteristicUUID = profile.getEventCharacteristicUUID();
+
+                        if (!TextUtils.isEmpty(eventCharacteristicUUID)) {
+                            // setModeCharacteristic
+                            eventCharacteristic =
+                                    service.getCharacteristic(UUID.fromString(eventCharacteristicUUID));
+                            validEvent = eventCharacteristic != null;
+                        }
+
+                        if (readCharacteristic != null && writeCharacteristic != null && validSetMode && validEvent) {
 
                             for (BluetoothGattDescriptor descriptor : readCharacteristic.getDescriptors()) {
-                                descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
-                                descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-                                bluetoothGatt.writeDescriptor(descriptor);
+                                descriptorsToEnable.offer(descriptor);
                             }
 
                             bluetoothGatt.setCharacteristicNotification(readCharacteristic, true);
+
                             bluetoothGatt.setCharacteristicNotification(writeCharacteristic, true);
 
-//                            if (setModeCharacteristic != null) {
-//                                bluetoothGatt.setCharacteristicNotification(setModeCharacteristic, true);
-//
-//                                for (BluetoothGattDescriptor descriptor : setModeCharacteristic.getDescriptors()) {
-//                                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
-//                                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-//                                    bluetoothGatt.writeDescriptor(descriptor);
-//                                }
-//                            }
+                            if (eventCharacteristic != null) {
+                                for (BluetoothGattDescriptor descriptorEvent :
+                                        eventCharacteristic.getDescriptors()) {
+                                    descriptorsToEnable.offer(descriptorEvent);
+                                }
+
+                                bluetoothGatt.setCharacteristicNotification(eventCharacteristic, true);
+                            }
+
+                            enableIndicationNotificationOnNextDescriptor();
 
                             readTerminator = profile.getTxTerminatorType().getValue();
                             writeTerminator = profile.getRxTerminatorType().getValue();
@@ -394,17 +457,6 @@ public class TxRxDeviceManager {
 
             deviceCallback.onTxRxServiceNotFound();
         }
-
-        private void accumulateValues(String currentValue, StringBuilder accumulator, Runnable successfulCallback) {
-            handlerWrapper.safeRemoveCallbacks(readTimeoutRunnable);
-            handlerWrapper.safeRemoveCallbacks(successfulCallback);
-
-            Log.i(TAG, "Accumulating characteristic values, current is: " + currentValue);
-
-            accumulator.append(currentValue);
-
-            handlerWrapper.safePostDelayed(successfulCallback, txRxTimeouts.getLaterReadTimeout());
-        }
     };
 
     /**
@@ -413,7 +465,8 @@ public class TxRxDeviceManager {
      * Use default {@link TxRxTimeouts} during device communication
      *
      * @param bluetoothAdapter {@link BluetoothAdapter} used to perform BLE task
-     * @param deviceCallback   {@link TxRxDeviceCallback} callback used to notify data and request results
+     * @param deviceCallback   {@link TxRxDeviceCallback} callback used to notify data and
+     *                         request results
      */
     public TxRxDeviceManager(BluetoothAdapter bluetoothAdapter, TxRxDeviceCallback deviceCallback) {
         this.bluetoothAdapter = bluetoothAdapter;
@@ -424,6 +477,7 @@ public class TxRxDeviceManager {
         this.isWriting = false;
         this.readAccumulator = new StringBuilder();
         this.notifyAccumulator = new StringBuilder();
+        this.eventAccumulator = new StringBuilder();
 
         connectionTimeoutRunnable = new Runnable() {
             @Override
@@ -438,6 +492,7 @@ public class TxRxDeviceManager {
             @Override
             public void run() {
                 isWriting = false;
+                txRxTimestamps = null;
                 TxRxDeviceManager.this.deviceCallback.onWriteTimeout();
                 Log.w(TAG, "Write failed: timeout!");
             }
@@ -446,6 +501,7 @@ public class TxRxDeviceManager {
         readTimeoutRunnable = new Runnable() {
             @Override
             public void run() {
+                txRxTimestamps = null;
                 TxRxDeviceManager.this.deviceCallback.onReadNotifyTimeout();
                 Log.w(TAG, "Read/Notify failed: timeout!");
             }
@@ -479,21 +535,42 @@ public class TxRxDeviceManager {
 
                 TxRxDeviceManager.this.deviceCallback.onNotifyData(completeNotifyValue + readTerminator);
                 Log.i(TAG, "Notify complete, characteristic value is: " + completeNotifyValue);
+
+                // TIME RECORDING - SEND TIMESTAMPS CALLBACK
+                if (txRxTimestamps != null) {
+                    TxRxDeviceManager.this.deviceCallback.onReceiveTxRxTimestampsAfterNotifyData(txRxTimestamps);
+                    txRxTimestamps = null;
+                }
+            }
+        };
+
+        successfulEventTimeoutRunnable = new Runnable() {
+            @Override
+            public void run() {
+                String completeEventValue = eventAccumulator.toString();
+                TxRxDeviceManager.this.eventAccumulator.setLength(0);
+
+                TxRxDeviceManager.this.deviceCallback.onEventData(completeEventValue + readTerminator);
+                Log.i(TAG,
+                        "event complete, characteristic value is: " + completeEventValue);
             }
         };
 
         this.txRxTimeouts = TxRxTimeouts.getDefaultTimeouts();
+
+        descriptorsToEnable = new LinkedList<>();
     }
 
     /**
      * Create a new {@link TxRxDeviceManager} to handle communication with a device.
      *
      * @param bluetoothAdapter {@link BluetoothAdapter} used to perform BLE task
-     * @param deviceCallback   {@link TxRxDeviceCallback} callback used to notify data and request results
+     * @param deviceCallback   {@link TxRxDeviceCallback} callback used to notify data and
+     *                         request results
      * @param txRxTimeouts     {@link TxRxTimeouts} used during device communication
      */
-    public TxRxDeviceManager(BluetoothAdapter bluetoothAdapter, TxRxDeviceCallback deviceCallback, TxRxTimeouts
-            txRxTimeouts) {
+    public TxRxDeviceManager(BluetoothAdapter bluetoothAdapter, TxRxDeviceCallback deviceCallback
+            , TxRxTimeouts txRxTimeouts) {
         this(bluetoothAdapter, deviceCallback);
         this.txRxTimeouts = txRxTimeouts;
     }
@@ -501,9 +578,11 @@ public class TxRxDeviceManager {
     /**
      * Closes this {@link TxRxDeviceManager} when every communication ends.
      * <p>
-     * This method should be called as early as possible when there is no need for any further communication.
+     * This method should be called as early as possible when there is no need for any further
+     * communication.
      * <p>
-     * <b>The method {@link TxRxDeviceManager#disconnect()} must be called before invoking this method.</b>
+     * <b>The method {@link TxRxDeviceManager#disconnect()} must be called before invoking this
+     * method.</b>
      */
     public synchronized void close() {
         Log.i(TAG, "Request close");
@@ -519,7 +598,8 @@ public class TxRxDeviceManager {
     /**
      * Initiate a connection to a device and discover services on successful connection.
      * <p>
-     * Invoking this method will close any connection previously opened and will stop any pending request to the device.
+     * Invoking this method will close any connection previously opened and will stop any pending
+     * request to the device.
      * <p>
      * The connection may not be established right away, but will be
      * completed when the remote device is available.
@@ -527,10 +607,12 @@ public class TxRxDeviceManager {
      * A {@link TxRxDeviceCallback#onDeviceConnected()} callback will be
      * invoked on a successful connection.
      * <br/>
-     * Otherwise a {@link TxRxDeviceCallback#onConnectionError(int)} callback will be invoked on connection error
+     * Otherwise a {@link TxRxDeviceCallback#onConnectionError(int)} callback will be invoked on
+     * connection error
      * or a {@link TxRxDeviceCallback#onConnectionTimeout()} callback on connection timeout.
      * <p>
-     * Just after the connection has been established, a service discovery will start in order to verify that the
+     * Just after the connection has been established, a service discovery will start in order to
+     * verify that the
      * connected device supports TxRx services.
      * <p>
      * A {@link TxRxDeviceCallback#onTxRxServiceDiscovered()} callback will be
@@ -601,6 +683,27 @@ public class TxRxDeviceManager {
     }
 
     /**
+     * Check if the device with the specified <b>address</b> is currently connected
+     * <p>
+     *
+     * @param address The device Bluetooth address as a string
+     * @param context The {@link Context} needed to check the device connection status
+     * @return true if the device is connected, false otherwise.
+     */
+    public boolean isConnected(String address, Context context) {
+        BluetoothManager bluetoothManager =
+                (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
+        List<BluetoothDevice> connectedDevices =
+                bluetoothManager.getConnectedDevices(BluetoothProfile.GATT);
+        for (BluetoothDevice device : connectedDevices) {
+            if (device.getAddress().equals(address)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Check if the connected device is a TxRxAckme device
      * <p>
      *
@@ -612,32 +715,15 @@ public class TxRxDeviceManager {
     }
 
     /**
-     * Check if the device with the specified <b>address</b> is currently connected
-     * <p>
-     *
-     * @param address The device Bluetooth address as a string
-     * @param context The {@link Context} needed to check the device connection status
-     * @return true if the device is connected, false otherwise.
-     */
-    public boolean isConnected(String address, Context context) {
-        BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
-        List<BluetoothDevice> connectedDevices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT);
-        for (BluetoothDevice device : connectedDevices) {
-            if (device.getAddress().equals(address)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * Send a read request to device.
      * <p>
-     * A {@link TxRxDeviceCallback#onReadData(String)} callback will be invoked when the read operation will be
+     * A {@link TxRxDeviceCallback#onReadData(String)} callback will be invoked when the read
+     * operation will be
      * completed,
      * reporting the result of the read operation
      * <p>
-     * Otherwise a {@link TxRxDeviceCallback#onReadError(int)} callback will be invoked on read error.
+     * Otherwise a {@link TxRxDeviceCallback#onReadError(int)} callback will be invoked on read
+     * error.
      * <p>
      * Requires {@link android.Manifest.permission#BLUETOOTH} permission.
      *
@@ -665,16 +751,19 @@ public class TxRxDeviceManager {
     /**
      * Set the operation mode to use during the communication with the device.
      * <p>
-     * A {@link TxRxDeviceCallback#onSetMode(int)} callback will be invoked when the operation will be
+     * A {@link TxRxDeviceCallback#onSetMode(int)} callback will be invoked when the operation
+     * will be
      * completed,
      * reporting the result of the SetMode operation
      * <p>
-     * Otherwise a {@link TxRxDeviceCallback#onSetModeError(int)} callback will be invoked on SetMode error.
+     * Otherwise a {@link TxRxDeviceCallback#onSetModeError(int)} callback will be invoked on
+     * SetMode error.
      * <p>
      * Requires {@link android.Manifest.permission#BLUETOOTH} permission.
      *
      * @param mode String the operation mode to apply
-     * @return true if the operation mode can be set and the SetMode operation was initiated successfully, false
+     * @return true if the operation mode can be set and the SetMode operation was initiated
+     * successfully, false
      * otherwise.
      */
     public synchronized boolean requestSetMode(int mode) {
@@ -715,16 +804,19 @@ public class TxRxDeviceManager {
     /**
      * Send a write request to device.
      * <p>
-     * A {@link TxRxDeviceCallback#onWriteData(String)} callback will be invoked when the write operation will be
+     * A {@link TxRxDeviceCallback#onWriteData(String)} callback will be invoked when the write
+     * operation will be
      * completed,
      * reporting the result of the write operation
      * <p>
-     * Otherwise a {@link TxRxDeviceCallback#onWriteError(int)} callback will be invoked on write error.
+     * Otherwise a {@link TxRxDeviceCallback#onWriteError(int)} callback will be invoked on write
+     * error.
      * <p>
      * Requires {@link android.Manifest.permission#BLUETOOTH} permission.
      *
      * @param data String data to write
-     * @return true if the data can be set and the write operation was initiated successfully, false otherwise.
+     * @return true if the data can be set and the write operation was initiated successfully,
+     * false otherwise.
      */
     public synchronized boolean requestWriteData(String data) {
         Log.i(TAG, "Start write request for data: " + data);
@@ -749,6 +841,11 @@ public class TxRxDeviceManager {
                 && bluetoothGatt.writeCharacteristic(writeCharacteristic);
 
         if (writeInitiated) {
+            // TIME RECORDING - RESET TIMESTAMPS
+            txRxTimestamps = new TxRxTimestamps();
+            // TIME RECORDING - START WRITE COMMAND
+            txRxTimestamps.setBeginWriteTime(System.currentTimeMillis());
+
             isWriting = true;
             handlerWrapper.safePostDelayed(writeTimeoutRunnable, txRxTimeouts.getWriteTimeout());
             handlerWrapper.safePostDelayed(readTimeoutRunnable, txRxTimeouts.getFirstReadTimeout());
@@ -770,6 +867,29 @@ public class TxRxDeviceManager {
         this.txRxTimeouts = txRxTimeouts;
     }
 
+    private void accumulateValues(String currentValue, StringBuilder accumulator,
+                                  Runnable successfulCallback) {
+        handlerWrapper.safeRemoveCallbacks(readTimeoutRunnable);
+        handlerWrapper.safeRemoveCallbacks(successfulCallback);
+
+        Log.i(TAG, "Accumulating characteristic values, current is: " + currentValue);
+
+        accumulator.append(currentValue);
+
+        handlerWrapper.safePostDelayed(successfulCallback, txRxTimeouts.getLaterReadTimeout());
+    }
+
+    private void accumulateValuesForEvent(String currentValue, StringBuilder accumulator,
+                                          Runnable successfulCallback) {
+        handlerWrapper.safeRemoveCallbacks(successfulCallback);
+
+        Log.i(TAG, "Accumulating characteristic values for event, current is: " + currentValue);
+
+        accumulator.append(currentValue);
+
+        handlerWrapper.safePostDelayed(successfulCallback, txRxTimeouts.getLaterReadTimeout());
+    }
+
     private void cleanState() {
         handlerWrapper.clean();
 
@@ -777,7 +897,19 @@ public class TxRxDeviceManager {
         readAccumulator.setLength(0);
         notifyAccumulator.setLength(0);
 
+        txRxTimestamps = null;
+
         connectedProfile = null;
+    }
+
+    private void enableIndicationNotificationOnNextDescriptor() {
+        BluetoothGattDescriptor nextDescriptor = descriptorsToEnable.poll();
+
+        if (nextDescriptor != null) {
+            nextDescriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
+            nextDescriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+            bluetoothGatt.writeDescriptor(nextDescriptor);
+        }
     }
 
     private void initChunksIterator(byte[] dataBytes) {

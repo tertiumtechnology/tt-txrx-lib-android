@@ -27,6 +27,8 @@ public class TxRxDeviceProfile {
     private String rxCharacteristicUUID;
     // setMode characteristic
     private String setModeCharacteristicUUID;
+    // event characteristic
+    private String eventCharacteristicUUID;
     // read terminator
     private TerminatorType txTerminatorType;
     // write terminator
@@ -43,6 +45,7 @@ public class TxRxDeviceProfile {
      * @param rxCharacteristicUUID      String the Rx characteristic UUID
      * @param txCharacteristicUUID      String the Tx characteristic UUID
      * @param setModeCharacteristicUUID String the SetMode characteristic UUID
+     * @param eventCharacteristicUUID   String the Event characteristic UUID
      * @param rxTerminatorType          {@link TerminatorType} represents the terminator type appended at the end of
      *                                  the write request
      * @param txTerminatorType          {@link TerminatorType} represents the terminator type appended at the end of
@@ -51,13 +54,15 @@ public class TxRxDeviceProfile {
      * @param txPacketSize              int the maximum tx packet size, used in read operation
      */
     public TxRxDeviceProfile(String txRxServiceUuid, String rxCharacteristicUUID, String txCharacteristicUUID,
-                             String setModeCharacteristicUUID, TerminatorType rxTerminatorType,
+                             String setModeCharacteristicUUID, String eventCharacteristicUUID,
+                             TerminatorType rxTerminatorType,
                              TerminatorType txTerminatorType, int rxPacketSize,
                              int txPacketSize) {
         this.txRxServiceUuid = txRxServiceUuid;
         this.txCharacteristicUUID = txCharacteristicUUID;
         this.rxCharacteristicUUID = rxCharacteristicUUID;
         this.setModeCharacteristicUUID = setModeCharacteristicUUID;
+        this.eventCharacteristicUUID = eventCharacteristicUUID;
         this.txTerminatorType = txTerminatorType;
         this.rxTerminatorType = rxTerminatorType;
         this.txPacketSize = txPacketSize;
@@ -65,21 +70,12 @@ public class TxRxDeviceProfile {
     }
 
     /**
-     * Returns the device Service UUID
+     * Returns the Event characteristic UUID
      *
-     * @return a String representing the device Service UUID
+     * @return a String representing the Event characteristic UUID
      */
-    public String getTxRxServiceUuid() {
-        return txRxServiceUuid;
-    }
-
-    /**
-     * Returns the Tx characteristic UUID, used in read operations
-     *
-     * @return a String representing the Tx characteristic UUID
-     */
-    public String getTxCharacteristicUUID() {
-        return txCharacteristicUUID;
+    public String getEventCharacteristicUUID() {
+        return eventCharacteristicUUID;
     }
 
     /**
@@ -92,21 +88,12 @@ public class TxRxDeviceProfile {
     }
 
     /**
-     * Returns the SetMode characteristic UUID, used for set the operation mode
+     * Returns the maximum Rx packet size, used in write operation
      *
-     * @return a String representing the SetMode characteristic UUID
+     * @return an int representing the maximum Tx packet size
      */
-    public String getSetModeCharacteristicUUID() {
-        return setModeCharacteristicUUID;
-    }
-
-    /**
-     * Returns a {@link TerminatorType}, appended at the end of the read/notified message received from the device
-     *
-     * @return the terminator type appended at the end of the read/notified message
-     */
-    public TerminatorType getTxTerminatorType() {
-        return txTerminatorType;
+    public int getRxPacketSize() {
+        return rxPacketSize;
     }
 
     /**
@@ -119,6 +106,24 @@ public class TxRxDeviceProfile {
     }
 
     /**
+     * Returns the SetMode characteristic UUID, used for set the operation mode
+     *
+     * @return a String representing the SetMode characteristic UUID
+     */
+    public String getSetModeCharacteristicUUID() {
+        return setModeCharacteristicUUID;
+    }
+
+    /**
+     * Returns the Tx characteristic UUID, used in read operations
+     *
+     * @return a String representing the Tx characteristic UUID
+     */
+    public String getTxCharacteristicUUID() {
+        return txCharacteristicUUID;
+    }
+
+    /**
      * Returns the maximum Tx packet size, used in read operation
      *
      * @return an int representing the maximum Rx packet size
@@ -128,11 +133,20 @@ public class TxRxDeviceProfile {
     }
 
     /**
-     * Returns the maximum Rx packet size, used in write operation
+     * Returns the device Service UUID
      *
-     * @return an int representing the maximum Tx packet size
+     * @return a String representing the device Service UUID
      */
-    public int getRxPacketSize() {
-        return rxPacketSize;
+    public String getTxRxServiceUuid() {
+        return txRxServiceUuid;
+    }
+
+    /**
+     * Returns a {@link TerminatorType}, appended at the end of the read/notified message received from the device
+     *
+     * @return the terminator type appended at the end of the read/notified message
+     */
+    public TerminatorType getTxTerminatorType() {
+        return txTerminatorType;
     }
 }

@@ -2,7 +2,8 @@ package com.tertiumtechnology.txrxlib.scan;
 
 import android.bluetooth.BluetoothDevice;
 import android.os.Build;
-import android.support.annotation.RequiresApi;
+
+import androidx.annotation.RequiresApi;
 
 /**
  * This class represents the result of a scan operation for BLE Devices properties.

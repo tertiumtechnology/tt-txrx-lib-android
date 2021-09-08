@@ -12,11 +12,12 @@ import android.bluetooth.le.ScanSettings;
 import android.os.Build;
 import android.os.Handler;
 import android.os.ParcelUuid;
-import android.support.annotation.RequiresApi;
 import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import androidx.annotation.RequiresApi;
 
 /**
  * This class provides methods to perform scan for BLE devices.
@@ -82,12 +83,12 @@ public class TxRxScanner {
                         private TxRxScanResult getTxRxScanResult(ScanResult scanResult) {
                             ScanRecord scanRecord = scanResult.getScanRecord();
 
-                            byte[] scanRecordByte =  new byte[0];
+                            byte[] scanRecordByte = new byte[0];
                             int txPowerLevel = Integer.MIN_VALUE;
 
-                            if(scanRecord != null){
+                            if (scanRecord != null) {
                                 txPowerLevel = scanRecord.getTxPowerLevel();
-                                scanRecordByte =  scanRecord.getBytes();
+                                scanRecordByte = scanRecord.getBytes();
                             }
 
                             return new TxRxScanResult(scanResult.getDevice(), scanResult.getRssi(), scanRecordByte,
@@ -139,10 +140,10 @@ public class TxRxScanner {
      * <p>
      * Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN} permission.
      * <p>
-     * An app must hold
-     * {@link android.Manifest.permission#ACCESS_COARSE_LOCATION ACCESS_COARSE_LOCATION} or
-     * {@link android.Manifest.permission#ACCESS_FINE_LOCATION ACCESS_FINE_LOCATION} permission
+     * An app must have {@link android.Manifest.permission#ACCESS_COARSE_LOCATION ACCESS_COARSE_LOCATION} permission
      * in order to get results.
+     * An App targeting Android Q or later must have {@link android.Manifest.permission#ACCESS_FINE_LOCATION
+     * ACCESS_FINE_LOCATION} permission in order to get results.
      */
     @SuppressLint("NewApi")
     public void startScan() {
@@ -156,10 +157,10 @@ public class TxRxScanner {
      * <p>
      * Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN} permission.
      * <p>
-     * An app must hold
-     * {@link android.Manifest.permission#ACCESS_COARSE_LOCATION ACCESS_COARSE_LOCATION} or
-     * {@link android.Manifest.permission#ACCESS_FINE_LOCATION ACCESS_FINE_LOCATION} permission
+     * An app must have {@link android.Manifest.permission#ACCESS_COARSE_LOCATION ACCESS_COARSE_LOCATION} permission
      * in order to get results.
+     * An App targeting Android Q or later must have {@link android.Manifest.permission#ACCESS_FINE_LOCATION
+     * ACCESS_FINE_LOCATION} permission in order to get results.
      *
      * @param serviceUuids the service uuids to look for during scan
      */
@@ -169,7 +170,7 @@ public class TxRxScanner {
 
         isScanning = true;
 
-        if(scanTimeout > 0) {
+        if (scanTimeout > 0) {
             handler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
