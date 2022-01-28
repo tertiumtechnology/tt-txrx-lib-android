@@ -159,25 +159,27 @@ public class TxRxDeviceManager {
 
     private static final String TAG = TxRxDeviceManager.class.getSimpleName();
 
-    private static final String TX_RX_TERTIUM_SERVICEUUID = "f3770001-1164-49bc-8f22-0ac34292c217";
+    private static final String SENSOR_TERTIUM_SERVICEUUID = "f3770001-1164-49bc-8f22-0ac34292c217";
     private static final String TX_RX_ACKME_SERVICEUUID = "175f8f23-a570-49bd-9627-815a6a27de2a";
     private static final String ZHAGA_SERVICEUUID = "3cc30001-cb91-4947-bd12-80d2f0535a30";
+    private static final String TX_RX_TERTIUM_SERVICEUUID = "d7080001-052c-46c4-9978-c0977bebf328";
+    private static final String ZEBRA_TERTIUM_SERVICEUUID = "c1ff0001-c47e-424d-9495-fb504404b8f5";
 
     private static ArrayList<TxRxDeviceProfile> txRxProfiles = new ArrayList<>();
 
     static {
-        // TxRxTertium
+        // Tertium sensor
         txRxProfiles.add(new TxRxDeviceProfile(
-                TX_RX_TERTIUM_SERVICEUUID,
+                SENSOR_TERTIUM_SERVICEUUID,
                 "f3770002-1164-49bc-8f22-0ac34292c217",
                 "f3770003-1164-49bc-8f22-0ac34292c217",
                 "",
-                "",//f3770004-1164-49bc-8f22-0ac34292c217
+                "",
                 TxRxDeviceProfile.TerminatorType.CRLF,
                 TxRxDeviceProfile.TerminatorType.NONE,
-                128, 20));
+                240, 240));
 
-        // TxRxAckme
+        // Zentri Ackme
         txRxProfiles.add(new TxRxDeviceProfile(
                 TX_RX_ACKME_SERVICEUUID,
                 "1cce1ea8-bd34-4813-a00a-c76e028fadcb",
@@ -188,7 +190,7 @@ public class TxRxDeviceManager {
                 TxRxDeviceProfile.TerminatorType.NONE,
                 15, 20));
 
-        // Zhaga
+        // Zhaga TxRx
         txRxProfiles.add(new TxRxDeviceProfile(
                 ZHAGA_SERVICEUUID,
                 "3cc30002-cb91-4947-bd12-80d2f0535a30",
@@ -196,6 +198,28 @@ public class TxRxDeviceManager {
                 "",
                 "3cc30004-cb91-4947-bd12-80d2f0535a30",
                 TxRxDeviceProfile.TerminatorType.CR,
+                TxRxDeviceProfile.TerminatorType.NONE,
+                240, 240));
+
+        // Tertium TxRx
+        txRxProfiles.add(new TxRxDeviceProfile(
+                TX_RX_TERTIUM_SERVICEUUID,
+                "d7080002-052c-46c4-9978-c0977bebf328",
+                "d7080003-052c-46c4-9978-c0977bebf328",
+                "",
+                "",
+                TxRxDeviceProfile.TerminatorType.CRLF,
+                TxRxDeviceProfile.TerminatorType.NONE,
+                240, 240));
+
+        // Tertium-Zebra TxRx
+        txRxProfiles.add(new TxRxDeviceProfile(
+                ZEBRA_TERTIUM_SERVICEUUID,
+                "c1ff0002-c47e-424d-9495-fb504404b8f5",
+                "c1ff0003-c47e-424d-9495-fb504404b8f5",
+                "",
+                "",
+                TxRxDeviceProfile.TerminatorType.CRLF,
                 TxRxDeviceProfile.TerminatorType.NONE,
                 240, 240));
     }
