@@ -1,19 +1,16 @@
 package com.tertiumtechnology.txrxlib.scan;
 
 import android.bluetooth.BluetoothDevice;
-import android.os.Build;
-
-import androidx.annotation.RequiresApi;
 
 /**
  * This class represents the result of a scan operation for BLE Devices properties.
  */
 public class TxRxScanResult {
 
-    private BluetoothDevice bluetoothDevice;
-    private int rssi;
-    private int txPower;
-    private byte[] scanRecord;
+    private final BluetoothDevice bluetoothDevice;
+    private final int rssi;
+    private final int txPower;
+    private final byte[] scanRecord;
 
     /**
      * Create a new {@link TxRxScanResult} as a result of a scan operation.
@@ -24,7 +21,6 @@ public class TxRxScanResult {
      *                        combination of advertisement and scan response.
      * @param txPower         The transmit power in dBm for the remote device.
      */
-    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
     public TxRxScanResult(BluetoothDevice bluetoothDevice, int rssi, byte[] scanRecord, int txPower) {
         this.bluetoothDevice = bluetoothDevice;
         this.rssi = rssi;
@@ -81,7 +77,6 @@ public class TxRxScanResult {
      *
      * @return the transmit power in dBm for the remote device.
      */
-    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
     public int getTxPower() {
         return txPower;
     }

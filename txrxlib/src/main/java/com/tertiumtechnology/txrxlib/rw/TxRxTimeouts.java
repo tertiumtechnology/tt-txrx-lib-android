@@ -25,7 +25,7 @@ public class TxRxTimeouts {
      */
     public static final long WRITE_TIMEOUT_DEFAULT_VALUE = 1500;
 
-    private static TxRxTimeouts defaultTxRxTimeouts = new TxRxTimeouts(
+    private static final TxRxTimeouts defaultTxRxTimeouts = new TxRxTimeouts(
             CONNECTION_TIMEOUT_DEFAULT_VALUE,
             WRITE_TIMEOUT_DEFAULT_VALUE,
             FIRST_READ_TIMEOUT_DEFAULT_VALUE,
@@ -41,10 +41,10 @@ public class TxRxTimeouts {
         return defaultTxRxTimeouts;
     }
 
-    private long connectTimeout;
-    private long firstReadTimeout;
-    private long laterReadTimeout;
-    private long writeTimeout;
+    private final long connectTimeout;
+    private final long firstReadTimeout;
+    private final long laterReadTimeout;
+    private final long writeTimeout;
 
     /**
      * Create a new {@link TxRxTimeouts} in order to manage communication timeouts.

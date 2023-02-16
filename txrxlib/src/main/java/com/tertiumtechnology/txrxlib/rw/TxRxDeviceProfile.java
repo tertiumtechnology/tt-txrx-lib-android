@@ -9,7 +9,7 @@ public class TxRxDeviceProfile {
     enum TerminatorType {
         NONE(""), CR("\r"), LF("\n"), CRLF("\r\n"), ZERO("\0");
 
-        private String value;
+        private final String value;
 
         TerminatorType(String value) {
             this.value = value;
@@ -20,23 +20,23 @@ public class TxRxDeviceProfile {
         }
     }
 
-    private String txRxServiceUuid;
+    private final String txRxServiceUuid;
     // read characteristic
-    private String txCharacteristicUUID;
+    private final String txCharacteristicUUID;
     // write characteristic
-    private String rxCharacteristicUUID;
+    private final String rxCharacteristicUUID;
     // setMode characteristic
-    private String setModeCharacteristicUUID;
+    private final String setModeCharacteristicUUID;
     // event characteristic
-    private String eventCharacteristicUUID;
+    private final String eventCharacteristicUUID;
     // read terminator
-    private TerminatorType txTerminatorType;
+    private final TerminatorType txTerminatorType;
     // write terminator
-    private TerminatorType rxTerminatorType;
+    private final TerminatorType rxTerminatorType;
     // read packet maximum size
-    private int txPacketSize;
+    private final int txPacketSize;
     // write packet maximum size
-    private int rxPacketSize;
+    private final int rxPacketSize;
 
     /**
      * Create a new {@link TxRxDeviceProfile} in order to manage device properties.

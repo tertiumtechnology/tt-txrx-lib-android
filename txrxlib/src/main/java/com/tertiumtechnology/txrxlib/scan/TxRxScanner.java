@@ -2,22 +2,18 @@ package com.tertiumtechnology.txrxlib.scan;
 
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothAdapter.LeScanCallback;
-import android.bluetooth.BluetoothDevice;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
-import android.os.Build;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelUuid;
 import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import androidx.annotation.RequiresApi;
 
 /**
  * This class provides methods to perform scan for BLE devices.
@@ -33,14 +29,13 @@ public class TxRxScanner {
 
     private static final long DEFAULT_SCAN_TIMEOUT = 10000;
 
-    private BluetoothAdapter bluetoothAdapter;
-    private TxRxScanCallback txRxScanCallback;
+    private final BluetoothAdapter bluetoothAdapter;
+    private final TxRxScanCallback txRxScanCallback;
 
-    private Handler handler;
+    private final Handler handler;
     private boolean isScanning;
 
-    private ScanCallback fromLollipopScanCallback;
-    private LeScanCallback preLollipopScanCallback;
+    private final ScanCallback scanCallback;
 
     private long scanTimeout;
 
@@ -53,58 +48,43 @@ public class TxRxScanner {
     public TxRxScanner(BluetoothAdapter bluetoothAdapter, final TxRxScanCallback txRxScanCallback) {
         this.bluetoothAdapter = bluetoothAdapter;
         this.txRxScanCallback = txRxScanCallback;
-        this.handler = new Handler();
+        this.handler = new Handler(Looper.myLooper());
         isScanning = false;
         scanTimeout = DEFAULT_SCAN_TIMEOUT;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            fromLollipopScanCallback =
-                    new ScanCallback() {
-                        @SuppressLint("NewApi")
-                        @Override
-                        public void onBatchScanResults(List<ScanResult> results) {
-                            for (ScanResult scanResult : results) {
-                                txRxScanCallback.onDeviceFound(getTxRxScanResult(scanResult));
-                            }
-                        }
+        scanCallback = new ScanCallback() {
+            @Override
+            public void onBatchScanResults(List<ScanResult> results) {
+                for (ScanResult scanResult : results) {
+                    txRxScanCallback.onDeviceFound(getTxRxScanResult(scanResult));
+                }
+            }
 
-                        @Override
-                        public void onScanFailed(int errorCode) {
-                            Log.e(TAG, "Scan Failed with error Code: " + errorCode);
-                        }
+            @Override
+            public void onScanFailed(int errorCode) {
+                Log.e(TAG, "Scan Failed with error Code: " + errorCode);
+            }
 
-                        @SuppressLint("NewApi")
-                        @Override
-                        public void onScanResult(int callbackType, ScanResult scanResult) {
-                            txRxScanCallback.onDeviceFound(getTxRxScanResult(scanResult));
-                        }
+            @Override
+            public void onScanResult(int callbackType, ScanResult scanResult) {
+                txRxScanCallback.onDeviceFound(getTxRxScanResult(scanResult));
+            }
 
-                        @SuppressLint("NewApi")
-                        private TxRxScanResult getTxRxScanResult(ScanResult scanResult) {
-                            ScanRecord scanRecord = scanResult.getScanRecord();
+            private TxRxScanResult getTxRxScanResult(ScanResult scanResult) {
+                ScanRecord scanRecord = scanResult.getScanRecord();
 
-                            byte[] scanRecordByte = new byte[0];
-                            int txPowerLevel = Integer.MIN_VALUE;
+                byte[] scanRecordByte = new byte[0];
+                int txPowerLevel = Integer.MIN_VALUE;
 
-                            if (scanRecord != null) {
-                                txPowerLevel = scanRecord.getTxPowerLevel();
-                                scanRecordByte = scanRecord.getBytes();
-                            }
+                if (scanRecord != null) {
+                    txPowerLevel = scanRecord.getTxPowerLevel();
+                    scanRecordByte = scanRecord.getBytes();
+                }
 
-                            return new TxRxScanResult(scanResult.getDevice(), scanResult.getRssi(), scanRecordByte,
-                                    txPowerLevel);
-                        }
-                    };
-        }
-        else {
-            preLollipopScanCallback =
-                    new LeScanCallback() {
-                        @Override
-                        public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
-                            txRxScanCallback.onDeviceFound(new TxRxScanResult(device, rssi, scanRecord));
-                        }
-                    };
-        }
+                return new TxRxScanResult(scanResult.getDevice(), scanResult.getRssi(), scanRecordByte,
+                        txPowerLevel);
+            }
+        };
     }
 
     /**
@@ -139,13 +119,13 @@ public class TxRxScanner {
      * {@link TxRxScanCallback#onDeviceFound(TxRxScanResult)}.
      * <p>
      * Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN} permission.
+     * An app running on Android S or later requires {@link android.Manifest.permission#BLUETOOTH_SCAN} permission.
      * <p>
      * An app must have {@link android.Manifest.permission#ACCESS_COARSE_LOCATION ACCESS_COARSE_LOCATION} permission
      * in order to get results.
      * An App targeting Android Q or later must have {@link android.Manifest.permission#ACCESS_FINE_LOCATION
      * ACCESS_FINE_LOCATION} permission in order to get results.
      */
-    @SuppressLint("NewApi")
     public void startScan() {
         startScan(null);
     }
@@ -155,7 +135,8 @@ public class TxRxScanner {
      * through
      * {@link TxRxScanCallback#onDeviceFound(TxRxScanResult)}.
      * <p>
-     * Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN} permission.
+     * Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN} permission.<br/>
+     * An app running on Android S or later requires {@link android.Manifest.permission#BLUETOOTH_SCAN} permission.
      * <p>
      * An app must have {@link android.Manifest.permission#ACCESS_COARSE_LOCATION ACCESS_COARSE_LOCATION} permission
      * in order to get results.
@@ -164,61 +145,51 @@ public class TxRxScanner {
      *
      * @param serviceUuids the service uuids to look for during scan
      */
-    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
+    @SuppressLint("MissingPermission")
     public void startScan(List<String> serviceUuids) {
         Log.i(TAG, "Start scan for device");
 
         isScanning = true;
 
         if (scanTimeout > 0) {
-            handler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    Log.i(TAG, "Stop scanning after " + (scanTimeout / 1000) + " seconds");
+            handler.postDelayed(() -> {
+                Log.i(TAG, "Stop scanning after " + (scanTimeout / 1000) + " seconds");
 
-                    if (isScanning()) {
-                        stopScan();
-                    }
+                if (isScanning()) {
+                    stopScan();
                 }
             }, scanTimeout);
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            ArrayList<ScanFilter> filters = new ArrayList<>();
+        ArrayList<ScanFilter> filters = new ArrayList<>();
 
-            if (serviceUuids != null && !serviceUuids.isEmpty()) {
-                for (String serviceUuid : serviceUuids) {
-                    filters.add(new ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(serviceUuid)).build
-                            ());
-                }
+        if (serviceUuids != null && !serviceUuids.isEmpty()) {
+            for (String serviceUuid : serviceUuids) {
+                filters.add(new ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(serviceUuid)).build
+                        ());
             }
-
-            ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
-
-            bluetoothAdapter.getBluetoothLeScanner().startScan(filters, settings, fromLollipopScanCallback);
         }
-        else {
-            bluetoothAdapter.startLeScan(preLollipopScanCallback);
-        }
+
+        ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
+
+        bluetoothAdapter.getBluetoothLeScanner().startScan(filters, settings, scanCallback);
     }
 
     /**
      * Stops an ongoing BLE scan.
      * <p>
      * Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN} permission.
+     * An app running on Android S or later requires {@link android.Manifest.permission#BLUETOOTH_SCAN} permission.
      */
+    @SuppressLint("MissingPermission")
     public void stopScan() {
         Log.i(TAG, "Stop scan");
 
         isScanning = false;
         handler.removeCallbacksAndMessages(null);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            bluetoothAdapter.getBluetoothLeScanner().stopScan(fromLollipopScanCallback);
-        }
-        else {
-            bluetoothAdapter.stopLeScan(preLollipopScanCallback);
-        }
+        bluetoothAdapter.getBluetoothLeScanner().stopScan(scanCallback);
+
         txRxScanCallback.afterStopScan();
     }
 }
