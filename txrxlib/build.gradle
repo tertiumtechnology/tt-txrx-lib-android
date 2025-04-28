@@ -1,14 +1,15 @@
 apply plugin: 'com.android.library'
 
 android {
-    compileSdkVersion 33
-    buildToolsVersion '33.0.1'
+    namespace 'com.tertiumtechnology.txrxlib'
 
     defaultConfig {
         minSdkVersion 24
-        targetSdkVersion 33
-        versionCode 7
-        versionName "1.6"
+        targetSdkVersion 34
+        compileSdk 34
+
+        versionCode 8
+        versionName "1.7"
     }
     buildTypes {
         release {
@@ -17,6 +18,6 @@ android {
         }
     }
     dependencies {
-        implementation "androidx.annotation:annotation:$rootProject.ext.androidxAnnotationVersion"
+        implementation "androidx.annotation:annotation:$androidxAnnotationVersion"
     }
 }

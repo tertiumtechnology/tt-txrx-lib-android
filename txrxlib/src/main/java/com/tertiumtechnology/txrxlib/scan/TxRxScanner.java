@@ -33,10 +33,8 @@ public class TxRxScanner {
     private final TxRxScanCallback txRxScanCallback;
 
     private final Handler handler;
-    private boolean isScanning;
-
     private final ScanCallback scanCallback;
-
+    private boolean isScanning;
     private long scanTimeout;
 
     /**
@@ -75,14 +73,17 @@ public class TxRxScanner {
 
                 byte[] scanRecordByte = new byte[0];
                 int txPowerLevel = Integer.MIN_VALUE;
+                List<ParcelUuid> serviceUuids = new ArrayList<>();
 
                 if (scanRecord != null) {
                     txPowerLevel = scanRecord.getTxPowerLevel();
                     scanRecordByte = scanRecord.getBytes();
+                    serviceUuids = scanRecord.getServiceUuids();
                 }
 
-                return new TxRxScanResult(scanResult.getDevice(), scanResult.getRssi(), scanRecordByte,
-                        txPowerLevel);
+                return new TxRxScanResult(scanResult.getDevice(), scanResult.getRssi(),
+                        scanRecordByte,
+                        txPowerLevel, serviceUuids);
             }
         };
     }
@@ -165,12 +166,15 @@ public class TxRxScanner {
 
         if (serviceUuids != null && !serviceUuids.isEmpty()) {
             for (String serviceUuid : serviceUuids) {
-                filters.add(new ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(serviceUuid)).build
-                        ());
+                filters.add(
+                        new ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(serviceUuid))
+                                .build
+                                        ());
             }
         }
 
-        ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
+        ScanSettings settings = new ScanSettings.Builder().setScanMode(
+                ScanSettings.SCAN_MODE_LOW_LATENCY).build();
 
         bluetoothAdapter.getBluetoothLeScanner().startScan(filters, settings, scanCallback);
     }
